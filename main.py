@@ -6,12 +6,12 @@ from os import system
 from time import sleep
 
 node_map = [
-    [Node(), Node(), Node(), Node(), Node(reword=2, isFinish=True)],
+    [Node(), Node(), Node(), Node(), Node(reword=5, isFinish=True)],
     [Node(), Node(), Node(), Node(), Node()],
     [Node(), Node(), Node(), Node(), Node()],
     [Node(), Node(), Node(), Node(), Node()],
     [Node(), Node(), Node(), Node(), Node()],
-    [Node(), Node(), Node(), Node(), Node(reword=8, isFinish=True)],
+    [Node(), Node(), Node(), Node(), Node(reword=25, isFinish=True)],
 ]
 
 pos = [0, 0]
@@ -64,9 +64,9 @@ def displayMap():
         text += "\n"
     print(text)
     print(f"pos : {pos}\tdir : {last_dir}\tcnt : {action_count}   \tepc : {epochs}")
-    count_average=0
-    if count_list!=[]:
-        count_average = np.round(sum(count_list)/len(count_list),1)
+    count_average = 0
+    if count_list != []:
+        count_average = np.round(sum(count_list) / len(count_list), 1)
     print(f"ctA : {count_average}")
 
 
@@ -101,7 +101,7 @@ def execute():
         if _next_node.isFinish:
             _node.setReword(index, Q)
             return 1
-        _node.setReword(index, np.round(Q * setting.gamma, 5))
+        _node.setReword(index, np.round(Q * setting.gamma, 4))
         pos = _next
         return 0
 
@@ -119,3 +119,18 @@ for i in range(setting.epochs_length):
     pos = [setting.start_pos[0], setting.start_pos[1]]
     last_dir = [0, 0]
     action_count = 0
+
+text = "\n"
+for i in range(len(node_map)):
+    for j in range(len(node_map[i])):
+        temp = node_map[i][j].getMaxDirIndex()
+        if temp != -1:
+            text += "↓→↑"[temp]
+        else:
+            if node_map[i][j].isFinish:
+                text += str(node_map[i][j].reword)
+            else:
+                text += "_"
+        text += " "
+    text += "\n"
+print(text)
