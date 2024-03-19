@@ -7,16 +7,10 @@ from os import system
 from time import sleep
 
 node_map = [
-    [Node(), Node(), Node(), Node(),Node(), Node(), Node(),Node(), Node(), Goal(255)],
-    [Node(), Node(), Node(), Node(),Node(), Node(), Node(),Wall(), Node(), Node()],
-    [Node(), Node(), Node(), Node(),Node(), Node(), Node(),Node(), Node(), Node()],
-    [Node(), Node(), Node(), Node(),Wall(), Node(), Node(),Node(), Node(), Node()],
-    [Node(), Node(), Node(), Node(),Wall(), Node(), Node(),Node(), Node(), Node()],
-    [Node(), Node(), Node(), Node(),Node(), Node(), Node(),Node(), Node(), Wall()],
-    [Node(), Node(), Node(), Node(),Node(), Node(), Node(),Node(), Node(), Node()],
-    [Node(), Node(), Node(), Node(),Wall(), Node(), Node(),Node(), Node(), Node()],
-    [Node(), Node(), Node(), Node(),Wall(), Node(), Node(),Node(), Node(), Node()],
-    [Node(), Node(), Node(), Node(),Wall(), Node(), Node(),Node(), Node(), Goal(25)]
+    [Node(), Node(), Node(), Wall()],
+    [Node(), Wall(), Node(), Node()],
+    [Node(), Node(), Node(), Node()],
+    [Node(), Node(), Node(), Goal(1)],
 ]
 
 pos = [0, 0]
@@ -30,6 +24,10 @@ direction = [
     [1, 0],
     [0, -1],
 ]
+
+
+def Log(title, content):
+    print(f"[ {title} ] >> {content}")
 
 
 def add(a: list, b: list) -> list:
@@ -46,32 +44,35 @@ def isOverMap(pos, _dir) -> bool:
         return True
     return False
 
+
 def loadData(record):
     global node_map
     for i in range(len(node_map)):
         for j in range(len(node_map[i])):
-            node_map[i][j].setRewords(record[i][j])
+            node_map[i][j].setQvalues(record[i][j])
+
 
 def saveData(data):
-    text="data=[\n"
+    text = "data=[\n"
     for i in range(len(data)):
-        text+="["
+        text += "["
         for j in range(len(data[i])):
-            text+=f"{data[i][j].rewords}, "
-        text+="],\n"
-    text+="]"
-    f=open("record.py","w")
+            text += f"{data[i][j].Qvalues}, "
+        text += "],\n"
+    text += "]"
+    f = open("record.py", "w")
     f.writelines(text)
     f.close()
     return text
+
 
 def displayResult():
     text = "\n"
     for i in range(len(node_map)):
         for j in range(len(node_map[i])):
-            temp = node_map[i][j].getMaxDirIndex()
-            if temp != -1:
-                text += "↓→↑"[temp]
+            temp, value = node_map[i][j].getMaxDirIndex(True)
+            if temp != [] and value > 0:
+                text += "↓→↑←"[temp[0]]
             else:
                 if node_map[i][j].isFinish:
                     text += str(node_map[i][j].reword)
@@ -81,7 +82,8 @@ def displayResult():
         text += "\n"
     print(text)
 
-def getDir(pos) -> list:
+
+def getPossibleDir(pos) -> list:
     return [i for i in direction if not isOverMap(pos, i)]
 
 
@@ -100,13 +102,13 @@ def displayMap():
                 text += "■"
             else:
                 if node_map[i][j].isWall:
-                    text+="※"
+                    text += "※"
                 else:
-                    text+="□"
+                    text += "□"
             if node_map[i][j].isFinish:
-                text += f"{node_map[i][j].reword}"
+                text += f" {node_map[i][j].reword}"
             else:
-                text += " "#str(node_map[i][j].rewords) + "    \t"
+                text += " "  # str(node_map[i][j].Qvalues) + "\t"
         text += "\n"
     print(text)
     print(f"pos : {pos}\tdir : {last_dir}\tcnt : {action_count}   \tepc : {epochs}")
@@ -120,70 +122,86 @@ def epsilonGreedy() -> bool:
     return r.random() < setting.epsilon
 
 
+def QvalueUpdate(nowQ, R, maxQ):
+    result = (1 - setting.alpha) * nowQ
+    result += setting.alpha * (R + setting.gamma * maxQ)
+    return np.round(result, 5)
+
+
+last_distance = 0
+
+
 def execute():
-    global pos, last_dir, action_count
+    global pos, last_dir, action_count, last_distance
     _node = node_map[pos[1]][pos[0]]
 
     # 다음 위치 선정
     _max_Q_dir_index = _node.getMaxDirIndex()
-    if _max_Q_dir_index == -1 or epsilonGreedy():
-        _dir = getDir(pos)
-        _dir = _dir[r.randint(0, len(_dir) - 1)]
+    _possible_dir = getPossibleDir(pos)
+    _candidate_dir = _max_Q_dir_index and _possible_dir
+    if epsilonGreedy() or _candidate_dir == []:
+        # 입실론 그리디 or Max Q 방향에 벽 존재할 경우
+        _dir = _possible_dir
+        _dir = _dir[r.randint(0, len(_possible_dir) - 1)]
     else:
-        _dir = direction[_max_Q_dir_index]
+        _dir = _candidate_dir
+        _dir = _dir[r.randint(0, len(_dir) - 1)]
     _next = add(pos, _dir)
-
-    # 연산할 값 선언
     _next_node = node_map[_next[1]][_next[0]]
-    Q = _next_node.getMaxReword()
+
+    # Q값 계산
+    maxQ = _next_node.getMaxReword()
+    _index = getDirIndex(_dir)
+    nowQ = _node.Qvalues[_index]
+    _distance = (pos[0] - 3) ** 2 - (pos[1] - 3) ** 2
+    _reword = _distance - last_distance
+    Q = QvalueUpdate(nowQ, _reword/9, maxQ)
+
+    # 기록
     last_dir = _dir
     action_count += 1
 
-    if Q == 0:
-        pos = _next
-        return 0
-    else:
-        index = getDirIndex(_dir)
-        pos = _next
-        if _next_node.isFinish:
-            _node.setReword(index, Q)
-            return 1
-        _node.setReword(index, np.round(Q * setting.gamma, 4))
-        return 0
-
-def Log(title, content):
-    print(f"[ {title} ] >> {content}")
+    _node.setReword(_index, Q)
+    pos = _next
+    if _next_node.isFinish:
+        return 1
+    # _node.setReword(index, np.round(Q * setting.gamma, 4))
+    return 0
 
 
 def fit_withoutDebug():
     global epochs
     while True:
-        result=execute()
+        result = execute()
         if result:
             epochs += 1
             print(epochs)
             return
 
+
 def fit():
     global epochs
     while True:
         system("cls")
-        result=execute()
+        result = execute()
         displayMap()
         if result:
             sleep(0.2)
             epochs += 1
             break
         sleep(0.1)
+
+
 # Main
 if setting.isLoadData:
     Log("load", "import data...")
     loadData(record.data)
     Log("load", "complete")
     sleep(0.5)
-Log("system","start simulator")
+Log("system", "start simulator")
 sleep(1)
 for i in range(setting.epochs_length):
+    #fit_withoutDebug()
     fit()
     count_list.append(action_count)
     pos = [setting.start_pos[0], setting.start_pos[1]]
