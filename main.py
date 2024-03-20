@@ -7,10 +7,13 @@ from os import system
 from time import sleep
 
 node_map = [
-    [Node(), Node(), Node(), Wall()],
-    [Node(), Wall(), Node(), Node()],
-    [Node(), Node(), Node(), Node()],
-    [Node(), Node(), Node(), Goal(1)],
+    [Node(),Node(), Wall(), Node(), Node(), Node(), Node(), Wall()],
+    [Node(),Node(), Node(), Node(), Wall(), Node(), Node(), Node()],
+    [Node(),Wall(), Wall(), Wall(), Node(), Node(), Node(), Node()],
+    [Node(),Wall(), Node(), Node(), Node(), Node(), Node(), Node()],
+    [Node(),Wall(), Node(), Node(), Node(), Node(), Wall(), Node()],
+    [Node(),Wall(), Node(), Wall(), Node(), Node(), Node(), Node()],
+    [Node(),Node(), Node(), Node(), Node(), Wall(), Node(), Goal(1)],
 ]
 
 pos = [0, 0]
@@ -19,11 +22,7 @@ action_count = 0
 count_list = []
 epochs = 0
 
-direction = [
-    [0, 1],
-    [1, 0],
-    [0, -1],
-]
+direction = [[0, 1], [1, 0], [0, -1], [-1, 0]]
 
 
 def Log(title, content):
@@ -128,7 +127,7 @@ def QvalueUpdate(nowQ, R, maxQ):
     return np.round(result, 5)
 
 
-last_distance = 0
+last_distance = 16 * 2
 
 
 def execute():
@@ -136,9 +135,10 @@ def execute():
     _node = node_map[pos[1]][pos[0]]
 
     # 다음 위치 선정
-    _max_Q_dir_index = _node.getMaxDirIndex()
+    _max_Q_dir_index = [direction[i] for i in _node.getMaxDirIndex()]
     _possible_dir = getPossibleDir(pos)
-    _candidate_dir = _max_Q_dir_index and _possible_dir
+    _candidate_dir = [i for i in _max_Q_dir_index if i in _possible_dir]
+
     if epsilonGreedy() or _candidate_dir == []:
         # 입실론 그리디 or Max Q 방향에 벽 존재할 경우
         _dir = _possible_dir
@@ -153,13 +153,14 @@ def execute():
     maxQ = _next_node.getMaxReword()
     _index = getDirIndex(_dir)
     nowQ = _node.Qvalues[_index]
-    _distance = (pos[0] - 3) ** 2 - (pos[1] - 3) ** 2
-    _reword = _distance - last_distance
-    Q = QvalueUpdate(nowQ, _reword/9, maxQ)
+    _distance = (_next[0] - 4) ** 2 + (_next[1] - 4) ** 2
+    _reword = last_distance - _distance
+    Q = QvalueUpdate(nowQ, 0, maxQ)
 
     # 기록
     last_dir = _dir
     action_count += 1
+    last_distance = _distance
 
     _node.setReword(_index, Q)
     pos = _next
@@ -201,8 +202,10 @@ if setting.isLoadData:
 Log("system", "start simulator")
 sleep(1)
 for i in range(setting.epochs_length):
-    #fit_withoutDebug()
-    fit()
+    if setting.isLearnMode:
+        fit_withoutDebug()
+    else:
+        fit()
     count_list.append(action_count)
     pos = [setting.start_pos[0], setting.start_pos[1]]
     last_dir = [0, 0]
@@ -213,3 +216,11 @@ if setting.isSaveData:
     saveData(node_map)
     print("[ Saved Data ]")
 displayResult()
+
+import matplotlib.pyplot as plt
+import numpy as np
+Log("result",sum(count_list)/len(count_list))
+count_list = np.array(count_list).reshape(int(len(count_list)/8),8)
+aver = [sum(i)/8 for i in count_list]
+plt.plot(aver)
+plt.show()
